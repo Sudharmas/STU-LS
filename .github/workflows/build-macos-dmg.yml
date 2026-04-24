@@ -40,7 +40,10 @@ jobs:
           name: stu-ls-desktop-macos-release-files
           path: |
             apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+            apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz
+            apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz.sig
             apps/desktop/src-tauri/target/release/bundle/**/latest.json
+            apps/desktop/src-tauri/target/release/bundle/**/latest*.json
             apps/desktop/src-tauri/target/release/bundle/**/*.sig
           if-no-files-found: error
 
@@ -50,6 +53,9 @@ jobs:
         with:
           files: |
             apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+            apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz
+            apps/desktop/src-tauri/target/release/bundle/macos/*.app.tar.gz.sig
             apps/desktop/src-tauri/target/release/bundle/**/latest.json
+            apps/desktop/src-tauri/target/release/bundle/**/latest*.json
             apps/desktop/src-tauri/target/release/bundle/**/*.sig
           generate_release_notes: true

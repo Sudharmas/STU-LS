@@ -141,6 +141,9 @@ Runtime behavior now:
 - `.github/workflows/build-macos-dmg.yml` builds DMG on macOS.
 - Manual run (`workflow_dispatch`) uploads DMG as a workflow artifact.
 - Tag push (`v*`) uploads DMG and attaches it to the matching GitHub Release.
+5. Important storage note:
+- There is no `releases` folder in repo root.
+- GitHub Release files are in the GitHub Releases UI under each tag's Assets section.
 
 ### C) In-App Updater Flow Implemented
 1. Desktop now includes:
@@ -160,9 +163,18 @@ Runtime behavior now:
   - `https://github.com/OWNER/REPO/releases/latest/download/latest.json`
 - Replace `OWNER/REPO` with your repository.
 
-3. Publish signed updater artifacts for each release.
+3. Ensure updater artifact generation is enabled in `tauri.conf.json`:
+- Set `bundle.createUpdaterArtifacts`.
+- For `latest.json` endpoint style, use `"createUpdaterArtifacts": "v1Compatible"`.
 
-4. Bump app version in:
+4. Publish signed updater artifacts for each release.
+
+5. Verify release Assets include:
+- installer files (`.dmg`, `.msi`, `.exe` as applicable)
+- `latest.json`
+- signature files (`.sig`)
+
+6. Bump app version in:
 - `apps/desktop/src-tauri/tauri.conf.json` (`version`)
 - `apps/desktop/package.json` (`version`)
 

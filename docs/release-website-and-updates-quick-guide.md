@@ -4,6 +4,13 @@ This guide is written for Windows-first development and explains exactly where f
 
 ## 1) Where Release Files Are Stored
 
+Important first:
+1. There is no `releases` folder in your repository root.
+2. GitHub Releases are not stored as normal source folders in the repo tree.
+3. Release files are stored in either:
+4. Local build output folders (`apps/desktop/src-tauri/target/release/bundle/...`)
+5. GitHub Release Assets (Repo -> Releases -> select version -> Assets)
+
 ### A) After local Windows build
 Run from project root:
 1. `npm run release:windows`
@@ -37,12 +44,14 @@ Workflow file:
 1. [.github/workflows/build-macos-dmg.yml](.github/workflows/build-macos-dmg.yml)
 
 Where files appear in GitHub:
-1. If you click Run workflow manually: GitHub Actions run -> Artifacts -> `stu-ls-desktop-macos-dmg`
-2. If you push a tag like `v0.1.1`: GitHub Release page for that tag -> Assets section (DMG attached automatically)
+1. If you click Run workflow manually: GitHub Actions run -> Artifacts -> `stu-ls-desktop-macos-release-files`
+2. If you push a tag like `v0.1.3`: GitHub Release page for that tag -> Assets section
+3. For updater endpoint `.../latest/download/latest.json`, this exact `latest.json` file must exist in Release Assets
 
 Important:
 1. Pushing code to `main` does not automatically create a release asset.
 2. Tag push (`v*`) is what triggers DMG publish to GitHub Release in current workflow.
+3. If release has only `.dmg` and no `latest.json`, updater URL returns 404.
 
 ## 2) Where And When To Use Signing Keys
 
@@ -138,11 +147,15 @@ Check:
 3. Release has required signed updater files
 4. Endpoint URL is correct:
 5. `https://github.com/Sudharmas/STU-LS/releases/latest/download/latest.json`
+6. `bundle.createUpdaterArtifacts` is set in `tauri.conf.json`
+7. For this endpoint style, use `"createUpdaterArtifacts": "v1Compatible"`
 
 ## 5) Final Checklist Before Every Release
 1. Version bumped in both files
 2. Tag created and pushed (`v*`)
 3. GitHub workflow finished successfully
 4. DMG visible in Release assets
-5. Windows installer exists in local bundle folders
-6. Test update from one old installed app
+5. `latest.json` visible in Release assets
+6. Signature files (`.sig`) visible in Release assets
+7. Windows installer exists in local bundle folders
+8. Test update from one old installed app
