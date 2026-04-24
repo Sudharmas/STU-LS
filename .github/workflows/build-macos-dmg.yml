@@ -37,13 +37,19 @@ jobs:
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4
         with:
-          name: stu-ls-desktop-macos-dmg
-          path: apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+          name: stu-ls-desktop-macos-release-files
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+            apps/desktop/src-tauri/target/release/bundle/**/latest.json
+            apps/desktop/src-tauri/target/release/bundle/**/*.sig
           if-no-files-found: error
 
       - name: Publish DMG to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+          files: |
+            apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg
+            apps/desktop/src-tauri/target/release/bundle/**/latest.json
+            apps/desktop/src-tauri/target/release/bundle/**/*.sig
           generate_release_notes: true
