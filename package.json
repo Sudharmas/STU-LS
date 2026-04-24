@@ -1,0 +1,32 @@
+{
+  "name": "stu-ls-app",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "backend-server",
+    "packages/*"
+  ],
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "scripts": {
+    "dev:app": "concurrently -n backend,desktop -c blue,green \"npm run dev:backend-server\" \"npm run dev:desktop\"",
+    "run:app": "npm run dev:app",
+    "dev:desktop": "npm --workspace @stu-ls/desktop run tauri dev",
+    "build:desktop": "npm --workspace @stu-ls/desktop run tauri build",
+    "check:desktop": "npm --workspace @stu-ls/desktop run check",
+    "test:desktop": "npm --workspace @stu-ls/desktop run test:run",
+    "dev:backend-server": "npm --prefix backend-server run dev",
+    "test:backend-server": "npm --prefix backend-server run test",
+    "db:migrate:backend": "npm --prefix backend-server run db:migrate",
+    "dev:sync-server": "npm --workspace @stu-ls/sync-server run dev",
+    "db:init:supabase": "npm --workspace @stu-ls/sync-server run db:init",
+    "test:sync-server": "npm --workspace @stu-ls/sync-server run test",
+    "test:app": "npm run test:sync-server && npm run test:desktop",
+    "test:rust-sync": "cd apps/desktop/src-tauri && cargo test tests::",
+    "release:windows": "npm --workspace @stu-ls/desktop run tauri:build:windows",
+    "release:mac": "npm --workspace @stu-ls/desktop run tauri:build:mac",
+    "release:linux": "npm --workspace @stu-ls/desktop run tauri:build:linux"
+  }
+}
