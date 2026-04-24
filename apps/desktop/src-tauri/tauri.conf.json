@@ -29,7 +29,7 @@
       "endpoints": [
         "https://github.com/Sudharmas/STU-LS/releases/latest/download/latest.json"
       ],
-      "pubkey": "CHANGE_ME_WITH_TAURI_UPDATER_PUBLIC_KEY"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDMyQTE2MkM2RTEwNUFBMkUKUldRdXFnWGh4bUtoTWhjWmxxSWE0cDNPMnphdHVXSzZrM3RGZEkrSXRmd1drZmxGVlk1d2VReTcK"
     }
   },
   "bundle": {
