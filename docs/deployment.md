@@ -119,9 +119,12 @@ Runtime behavior now:
 1. Build desktop app:
 - `npm run build:desktop`
 2. Platform installers:
-- `npm run release:windows`
-- `npm run release:mac`
-- `npm run release:linux`
+- `npm run release:windows` (run on Windows)
+- `npm run release:mac` (run on macOS)
+- `npm run release:linux` (run on Linux)
+3. Cross-OS packaging note:
+- You cannot create a DMG from Windows/Linux.
+- Use GitHub Actions on `macos-latest` for DMG builds when developing on Windows.
 
 ## 9) Publishing On Your Website + In-App Updates
 
@@ -134,6 +137,10 @@ Runtime behavior now:
 1. Publish release artifacts to GitHub Releases (recommended), OR host equivalent artifacts/manifest on your own server.
 2. Keep website download buttons pointing to latest stable release for first-time users.
 3. Existing installed users update directly from inside the app using updater checks.
+4. Repository workflow for macOS DMG:
+- `.github/workflows/build-macos-dmg.yml` builds DMG on macOS.
+- Manual run (`workflow_dispatch`) uploads DMG as a workflow artifact.
+- Tag push (`v*`) uploads DMG and attaches it to the matching GitHub Release.
 
 ### C) In-App Updater Flow Implemented
 1. Desktop now includes:

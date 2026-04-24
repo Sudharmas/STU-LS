@@ -15,7 +15,7 @@ Push code -> Build installers -> Create GitHub Release -> App users click Check 
 ### Step 1: Connect app to your GitHub repo for updates
 1. Open [apps/desktop/src-tauri/tauri.conf.json](apps/desktop/src-tauri/tauri.conf.json).
 2. In updater endpoints, set:
-3. https://github.com/OWNER/REPO/releases/latest/download/latest.json
+3. https://github.com/Sudharmas/STU-LS/releases/latest/download/latest.json
 4. Replace OWNER and REPO with your real GitHub repo.
 
 Why:

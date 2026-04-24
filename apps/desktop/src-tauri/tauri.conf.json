@@ -27,7 +27,7 @@
       "active": true,
       "dialog": false,
       "endpoints": [
-        "https://github.com/OWNER/REPO/releases/latest/download/latest.json"
+        "https://github.com/Sudharmas/STU-LS/releases/latest/download/latest.json"
       ],
       "pubkey": "CHANGE_ME_WITH_TAURI_UPDATER_PUBLIC_KEY"
     }

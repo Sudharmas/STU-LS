@@ -12,9 +12,9 @@
     "test:run": "vitest run",
     "tauri": "tauri",
     "tauri:build": "tauri build",
-    "tauri:build:windows": "tauri build --bundles msi",
-    "tauri:build:mac": "tauri build --bundles dmg",
-    "tauri:build:linux": "tauri build --bundles appimage,deb,rpm"
+    "tauri:build:windows": "node -e \"if(process.platform!=='win32'){console.error('tauri:build:windows must be run on Windows (win32). Current: '+process.platform);process.exit(1)}\" && tauri build --bundles msi,nsis",
+    "tauri:build:mac": "node -e \"if(process.platform!=='darwin'){console.error('tauri:build:mac must be run on macOS (darwin). Current: '+process.platform);process.exit(1)}\" && tauri build --bundles dmg",
+    "tauri:build:linux": "node -e \"if(process.platform!=='linux'){console.error('tauri:build:linux must be run on Linux. Current: '+process.platform);process.exit(1)}\" && tauri build --bundles appimage,deb,rpm"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

@@ -67,8 +67,10 @@ Important: schema creation is not automatic on app start. It is executed once by
 
 ## Release Build
 - Windows: `npm run release:windows`
-- macOS: `npm run release:mac`
+- macOS: `npm run release:mac` (must run on macOS host)
 - Linux: `npm run release:linux`
+
+If you are developing on Windows, build the DMG through GitHub Actions using `.github/workflows/build-macos-dmg.yml`.
 
 ## Notes
 - Rust toolchain must be installed to run Tauri backend locally.
