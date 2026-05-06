@@ -1,9 +1,9 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { getStorageHealth, getUserBootstrapByUsername, processBridgePayload } from "./store.js";
+import { getStorageHealth, getUserBootstrapByUsername, getVisibleUsersForViewer, processBridgePayload } from "./store.js";
 
-export function createApp(store = { getStorageHealth, processBridgePayload, getUserBootstrapByUsername }) {
+export function createApp(store = { getStorageHealth, processBridgePayload, getUserBootstrapByUsername, getVisibleUsersForViewer }) {
   const app = express();
   const corsOrigins = (process.env.BACKEND_SERVER_CORS_ORIGINS ?? "")
     .split(",")
@@ -110,6 +110,35 @@ export function createApp(store = { getStorageHealth, processBridgePayload, getU
         // eslint-disable-next-line no-console
         console.error(`[backend-server] /auth/user-bootstrap failed: ${error.message ?? error}`);
         return res.status(500).json({ error: error.message ?? "user bootstrap lookup failed" });
+      });
+  });
+
+  app.post("/dashboard/users", (req, res) => {
+    const body = req.body;
+    if (!body || typeof body !== "object") {
+      return res.status(400).json({ error: "invalid request body" });
+    }
+
+    const actorUsername = typeof body.actor_username === "string" ? body.actor_username.trim() : "";
+    if (!actorUsername) {
+      return res.status(400).json({ error: "actor_username is required" });
+    }
+
+    const configuredToken = (process.env.BACKEND_SERVER_BEARER_TOKEN ?? "").trim();
+    if (configuredToken) {
+      const header = req.headers.authorization ?? "";
+      const provided = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+      if (provided !== configuredToken) {
+        return res.status(401).json({ error: "unauthorized" });
+      }
+    }
+
+    return Promise.resolve(store.getVisibleUsersForViewer(actorUsername))
+      .then((users) => res.json({ ok: true, users }))
+      .catch((error) => {
+        // eslint-disable-next-line no-console
+        console.error(`[backend-server] /dashboard/users failed: ${error.message ?? error}`);
+        return res.status(500).json({ error: error.message ?? "users lookup failed" });
       });
   });
 

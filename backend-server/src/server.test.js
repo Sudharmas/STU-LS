@@ -67,4 +67,24 @@ describe("backend server", () => {
     expect(response.body.user.username).toBe("PLATFORMADMIN");
     expect(getUserBootstrapByUsername).toHaveBeenCalledWith("platformadmin");
   });
+
+  it("returns visible dashboard users", async () => {
+    const getVisibleUsersForViewer = vi.fn().mockResolvedValue([
+      { id: 1, username: "PLATFORMADMIN", full_name: null, role: "platform_admin", department: null, is_active: true, created_at: "2026-05-06T00:00:00Z" },
+      { id: 2, username: "LECTURER1", full_name: null, role: "lecturer", department: "CSE", is_active: true, created_at: "2026-05-06T00:00:00Z" }
+    ]);
+    const app = createApp({
+      getStorageHealth: vi.fn().mockResolvedValue({ ok: true, mode: "postgres" }),
+      processBridgePayload: vi.fn(),
+      getUserBootstrapByUsername: vi.fn(),
+      getVisibleUsersForViewer
+    });
+
+    const response = await request(app).post("/dashboard/users").send({ actor_username: "platformadmin" });
+
+    expect(response.status).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(response.body.users).toHaveLength(2);
+    expect(getVisibleUsersForViewer).toHaveBeenCalledWith("platformadmin");
+  });
 });

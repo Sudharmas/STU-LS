@@ -67,6 +67,97 @@ export async function getUserBootstrapByUsername(username) {
   return result.rows[0];
 }
 
+export async function getVisibleUsersForViewer(actorUsername) {
+  if (!process.env.SUPABASE_DB_URL) {
+    throw new Error("SUPABASE_DB_URL is required");
+  }
+
+  const normalizedActor = String(actorUsername ?? "").trim().toUpperCase();
+  if (!normalizedActor) {
+    throw new Error("actor_username is required");
+  }
+
+  const actorResult = await pool.query(
+    `
+    SELECT role, college_uid, department
+    FROM public.users
+    WHERE username = $1 AND is_active = true
+    LIMIT 1
+    `,
+    [normalizedActor]
+  );
+
+  const actor = actorResult.rows[0];
+  if (!actor) {
+    return [];
+  }
+
+  let userResult;
+  if (actor.role === "platform_admin") {
+    userResult = await pool.query(
+      `
+      SELECT id, username, full_name, role, department, is_active, created_at
+      FROM public.users
+      WHERE is_active = true
+      ORDER BY id ASC
+      `
+    );
+  } else if (actor.role === "super_admin") {
+    userResult = await pool.query(
+      `
+      SELECT id, username, full_name, role, department, is_active, created_at
+      FROM public.users
+      WHERE is_active = true
+        AND role <> 'platform_admin'
+        AND college_uid = $1
+      ORDER BY id ASC
+      `,
+      [actor.college_uid]
+    );
+  } else if (actor.role === "department_admin") {
+    userResult = await pool.query(
+      `
+      SELECT id, username, full_name, role, department, is_active, created_at
+      FROM public.users
+      WHERE is_active = true
+        AND role IN ('lecturer', 'student')
+        AND college_uid = $1
+        AND LOWER(COALESCE(department, '')) = LOWER(COALESCE($2, ''))
+      ORDER BY id ASC
+      `,
+      [actor.college_uid, actor.department]
+    );
+  } else if (actor.role === "lecturer") {
+    userResult = await pool.query(
+      `
+      SELECT id, username, full_name, role, department, is_active, created_at
+      FROM public.users
+      WHERE is_active = true
+        AND role = 'student'
+        AND college_uid = $1
+      ORDER BY id ASC
+      `,
+      [actor.college_uid]
+    );
+  } else if (actor.role === "student") {
+    userResult = await pool.query(
+      `
+      SELECT id, username, full_name, role, department, is_active, created_at
+      FROM public.users
+      WHERE is_active = true
+        AND role = 'student'
+        AND username = $1
+      LIMIT 1
+      `,
+      [normalizedActor]
+    );
+  } else {
+    return [];
+  }
+
+  return userResult.rows;
+}
+
 async function collectVisibleUserChanges(client, actorUsername, actorRole) {
   const actorResult = await client.query(
     `

@@ -859,6 +859,33 @@ function App() {
 
   const loadUsers = async (actorUsername: string) => {
     try {
+      const onlineUsers = await (async () => {
+        const response = await fetch(`${activeSyncUrl.replace(/\/$/, "")}/dashboard/users`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(DEFAULT_SYNC_TOKEN.trim() ? { Authorization: `Bearer ${DEFAULT_SYNC_TOKEN.trim()}` } : {})
+          },
+          body: JSON.stringify({ actor_username: actorUsername })
+        });
+
+        if (!response.ok) {
+          return null;
+        }
+
+        const payload = await response.json() as { ok?: boolean; users?: UserSummary[] };
+        if (!payload.ok || !Array.isArray(payload.users)) {
+          return null;
+        }
+
+        return payload.users;
+      })().catch(() => null);
+
+      if (onlineUsers) {
+        setUsers(onlineUsers);
+        return;
+      }
+
       const result = await invoke<UserSummary[]>("list_users", {
         actorUsername,
         roleFilter: null
