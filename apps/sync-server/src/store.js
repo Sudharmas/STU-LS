@@ -44,6 +44,14 @@ async function runPg(sql, params = []) {
 }
 
 async function upsertUserDirect(normalized) {
+  const existing = await runPg(
+    `SELECT id, username FROM public.users WHERE id = $1 OR username = $2 LIMIT 1`,
+    [normalized.id, normalized.username]
+  );
+  if (existing.rows[0]) {
+    throw new Error("user already exists");
+  }
+
   const sqlWithInternalSecurity = `
     INSERT INTO public.users (id, username, password_hash, role, department, college_uid, college_name, college_identification_number, full_name, internal_password_hash, internal_password_required, is_active, created_at, updated_at, version, sync_state)
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::timestamptz, $14::timestamptz, $15, $16)

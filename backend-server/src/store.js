@@ -431,6 +431,19 @@ async function applyDomainChange(client, tableName, operation, record) {
   }
 
   if (tableName === "users") {
+    const conflict = await client.query(
+      `
+      SELECT id, username
+      FROM public.users
+      WHERE id = $1 OR username = $2
+      LIMIT 1
+      `,
+      [Number(record.id), String(record.username ?? "")]
+    );
+    if (conflict.rows[0]) {
+      throw new Error("user already exists");
+    }
+
     await client.query(
       `
       INSERT INTO public.users (

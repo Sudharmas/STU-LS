@@ -1,7 +1,7 @@
 {
   "clients": {
     "stu-ls-desktop": {
-      "lastSeenAt": "2026-04-19T16:52:08.727Z",
+      "lastSeenAt": "2026-05-06T08:41:12.809Z",
       "records": [
         {
           "outbox_id": 101,
@@ -122,6 +122,16 @@
           "created_at": "2026-04-18 10:00:00",
           "retries": 0,
           "received_at": "2026-04-19T16:52:08.727Z"
+        },
+        {
+          "outbox_id": 101,
+          "table_name": "users",
+          "record_id": 17,
+          "operation": "insert",
+          "payload": "{\"id\":17}",
+          "created_at": "2026-04-18 10:00:00",
+          "retries": 0,
+          "received_at": "2026-05-06T08:41:12.809Z"
         }
       ]
     }
