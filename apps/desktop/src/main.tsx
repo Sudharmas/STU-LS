@@ -8,6 +8,139 @@ import type { UserRole } from "../../../packages/contracts/src";
 import { extractUsnsFromWorkbookBuffer } from "./lib/parsers";
 import "./styles.css";
 
+const customPrompt = async (message: string, isPassword = false): Promise<string | null> => {
+  return new Promise((resolve) => {
+    const dialog = document.createElement("dialog");
+    dialog.style.padding = "20px";
+    dialog.style.borderRadius = "8px";
+    dialog.style.border = "1px solid var(--border-color, #ccc)";
+    dialog.style.backgroundColor = "var(--bg-color, white)";
+    dialog.style.color = "var(--text-color, black)";
+    dialog.style.boxShadow = "0 4px 6px rgba(0,0,0,0.1)";
+
+    const form = document.createElement("form");
+    form.method = "dialog";
+
+    const p = document.createElement("p");
+    p.textContent = message;
+    p.style.marginBottom = "10px";
+
+    const input = document.createElement("input");
+    input.type = isPassword ? "password" : "text";
+    input.style.width = "100%";
+    input.style.marginBottom = "20px";
+    input.style.padding = "8px";
+    input.style.boxSizing = "border-box";
+
+    const btnContainer = document.createElement("div");
+    btnContainer.style.display = "flex";
+    btnContainer.style.justifyContent = "flex-end";
+    btnContainer.style.gap = "10px";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.style.padding = "8px 16px";
+    cancelBtn.onclick = () => {
+      dialog.close();
+      resolve(null);
+    };
+
+    const submitBtn = document.createElement("button");
+    submitBtn.type = "submit";
+    submitBtn.textContent = "OK";
+    submitBtn.style.padding = "8px 16px";
+    submitBtn.style.backgroundColor = "#007bff";
+    submitBtn.style.color = "white";
+    submitBtn.style.border = "none";
+    submitBtn.style.borderRadius = "4px";
+    submitBtn.style.cursor = "pointer";
+
+    form.onsubmit = () => {
+      resolve(input.value);
+    };
+
+    btnContainer.appendChild(cancelBtn);
+    btnContainer.appendChild(submitBtn);
+    form.appendChild(p);
+    form.appendChild(input);
+    form.appendChild(btnContainer);
+    dialog.appendChild(form);
+
+    document.body.appendChild(dialog);
+    dialog.showModal();
+    input.focus();
+
+    dialog.addEventListener("close", () => {
+      if (document.body.contains(dialog)) {
+        document.body.removeChild(dialog);
+      }
+    });
+  });
+};
+
+const customConfirm = async (message: string): Promise<boolean> => {
+  return new Promise((resolve) => {
+    const dialog = document.createElement("dialog");
+    dialog.style.padding = "20px";
+    dialog.style.borderRadius = "8px";
+    dialog.style.border = "1px solid var(--border-color, #ccc)";
+    dialog.style.backgroundColor = "var(--bg-color, white)";
+    dialog.style.color = "var(--text-color, black)";
+    dialog.style.boxShadow = "0 4px 6px rgba(0,0,0,0.1)";
+
+    const form = document.createElement("form");
+    form.method = "dialog";
+
+    const p = document.createElement("p");
+    p.textContent = message;
+    p.style.marginBottom = "20px";
+
+    const btnContainer = document.createElement("div");
+    btnContainer.style.display = "flex";
+    btnContainer.style.justifyContent = "flex-end";
+    btnContainer.style.gap = "10px";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.style.padding = "8px 16px";
+    cancelBtn.onclick = () => {
+      dialog.close();
+      resolve(false);
+    };
+
+    const submitBtn = document.createElement("button");
+    submitBtn.type = "submit";
+    submitBtn.textContent = "OK";
+    submitBtn.style.padding = "8px 16px";
+    submitBtn.style.backgroundColor = "#007bff";
+    submitBtn.style.color = "white";
+    submitBtn.style.border = "none";
+    submitBtn.style.borderRadius = "4px";
+    submitBtn.style.cursor = "pointer";
+
+    form.onsubmit = () => {
+      resolve(true);
+    };
+
+    btnContainer.appendChild(cancelBtn);
+    btnContainer.appendChild(submitBtn);
+    form.appendChild(p);
+    form.appendChild(btnContainer);
+    dialog.appendChild(form);
+
+    document.body.appendChild(dialog);
+    dialog.showModal();
+
+    dialog.addEventListener("close", () => {
+      if (document.body.contains(dialog)) {
+        document.body.removeChild(dialog);
+      }
+    });
+  });
+};
+
 const DEFAULT_SYNC_URL = (import.meta.env.VITE_SYNC_SERVER_URL as string | undefined) ?? "http://localhost:8090";
 const SYNC_FALLBACK_URLS = ((import.meta.env.VITE_SYNC_FALLBACK_URLS as string | undefined) ?? "http://localhost:8090")
   .split(",")
@@ -626,13 +759,13 @@ function App() {
       });
 
       if (needsInternalPasswordSetup) {
-        const firstPassword = window.prompt("Set your internal password (minimum 4 characters):");
+        const firstPassword = await customPrompt("Set your internal password (minimum 4 characters):", true);
         if (!firstPassword || !firstPassword.trim()) {
           setError("Internal password setup is required for first login.");
           return;
         }
 
-        const confirmPassword = window.prompt("Confirm your internal password:");
+        const confirmPassword = await customPrompt("Confirm your internal password:", true);
         if (confirmPassword === null) {
           setError("Internal password confirmation is required.");
           return;
@@ -790,18 +923,18 @@ function App() {
     }
   };
 
-  const requestPlatformInternalPassword = (actionLabel: string): string | null | undefined => {
+  const requestPlatformInternalPassword = async (actionLabel: string): Promise<string | null | undefined> => {
     if (!session || session.role !== "platform_admin") {
       return undefined;
     }
 
-    const confirmed = window.confirm(`Confirm action: ${actionLabel}`);
+    const confirmed = await customConfirm(`Confirm action: ${actionLabel}`);
     if (!confirmed) {
       setInfo("Action cancelled.");
       return null;
     }
 
-    const internalPassword = window.prompt("Enter internal password to continue:");
+    const internalPassword = await customPrompt("Enter internal password to continue:", true);
     if (!internalPassword || !internalPassword.trim()) {
       setError("Internal password is required for this action.");
       return null;
@@ -840,7 +973,7 @@ function App() {
         }
       }
 
-      const internalPassword = requestPlatformInternalPassword("Create user");
+      const internalPassword = await requestPlatformInternalPassword("Create user");
       if (internalPassword === null) {
         return;
       }
@@ -916,7 +1049,7 @@ function App() {
     setError("");
     setInfo("");
     try {
-      const internalPassword = requestPlatformInternalPassword("Update user");
+      const internalPassword = await requestPlatformInternalPassword("Update user");
       if (internalPassword === null) {
         return;
       }
@@ -941,7 +1074,7 @@ function App() {
     setError("");
     setInfo("");
     try {
-      const internalPassword = requestPlatformInternalPassword("Delete user");
+      const internalPassword = await requestPlatformInternalPassword("Delete user");
       if (internalPassword === null) {
         return;
       }
@@ -986,7 +1119,7 @@ function App() {
     setError("");
     setInfo("");
     try {
-      const internalPassword = requestPlatformInternalPassword("Delete user");
+      const internalPassword = await requestPlatformInternalPassword("Delete user");
       if (internalPassword === null) {
         return;
       }
@@ -1023,7 +1156,7 @@ function App() {
     setError("");
     setInfo("");
     try {
-      const internalPassword = requestPlatformInternalPassword("Delete selected students");
+      const internalPassword = await requestPlatformInternalPassword("Delete selected students");
       if (internalPassword === null) {
         return;
       }

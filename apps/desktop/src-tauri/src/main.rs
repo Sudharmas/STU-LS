@@ -1857,16 +1857,16 @@ fn is_internal_password_setup_required(
     apply_migration(&conn)?;
     let normalized_username = normalize_upper(&username);
 
-    let required: i64 = conn
+    let (required, hash_opt): (i64, Option<String>) = conn
         .query_row(
-            "SELECT internal_password_required FROM users WHERE username = ?1 AND is_active = 1",
+            "SELECT internal_password_required, internal_password_hash FROM users WHERE username = ?1 AND is_active = 1",
             params![normalized_username],
-            |r| r.get(0),
+            |r| Ok((r.get(0)?, r.get(1)?)),
         )
         .optional()?
         .ok_or(AppError::ActorNotFound)?;
 
-    Ok(required == 1)
+    Ok(required == 1 && hash_opt.is_none())
 }
 
 #[tauri::command]
