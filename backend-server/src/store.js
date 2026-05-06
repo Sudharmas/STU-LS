@@ -38,6 +38,35 @@ export async function getStorageHealth() {
   }
 }
 
+export async function getUserBootstrapByUsername(username) {
+  if (!process.env.SUPABASE_DB_URL) {
+    throw new Error("SUPABASE_DB_URL is required");
+  }
+
+  const normalized = String(username ?? "").trim().toUpperCase();
+  if (!normalized) {
+    throw new Error("username is required");
+  }
+
+  const result = await pool.query(
+    `
+    SELECT id, username, full_name, role, department, is_active, created_at,
+           password_hash, college_uid, college_name, college_identification_number,
+           internal_password_hash, internal_password_required
+    FROM public.users
+    WHERE username = $1 AND is_active = true
+    LIMIT 1
+    `,
+    [normalized]
+  );
+
+  if (!result.rows[0]) {
+    return null;
+  }
+
+  return result.rows[0];
+}
+
 export async function processBridgePayload(payload) {
   if (!process.env.SUPABASE_DB_URL) {
     throw new Error("SUPABASE_DB_URL is required");

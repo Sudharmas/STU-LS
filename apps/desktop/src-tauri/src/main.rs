@@ -73,6 +73,37 @@ struct UserSummary {
     created_at: String,
 }
 
+#[derive(Debug, Clone)]
+struct LocalLoginRecord {
+    summary: UserSummary,
+    password_hash: String,
+    internal_password_hash: Option<String>,
+    internal_password_required: i64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct OnlineBootstrapUser {
+    id: i64,
+    username: String,
+    full_name: Option<String>,
+    role: String,
+    department: Option<String>,
+    is_active: bool,
+    created_at: String,
+    password_hash: String,
+    college_uid: Option<String>,
+    college_name: Option<String>,
+    college_identification_number: Option<String>,
+    internal_password_hash: Option<String>,
+    internal_password_required: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct OnlineBootstrapResponse {
+    ok: bool,
+    user: OnlineBootstrapUser,
+}
+
 #[derive(Debug, Clone, Serialize)]
 struct CourseSummary {
     id: i64,
@@ -1433,16 +1464,30 @@ fn authenticate_login(
     password: &str,
     allowed_roles: &[&str],
 ) -> Result<UserSummary, AppError> {
+    let row = fetch_local_login_record(conn, username)?.ok_or(AppError::InvalidCredentials)?;
+
+    if !verify_password(&row.password_hash, password)? {
+        return Err(AppError::InvalidCredentials);
+    }
+
+    if !allowed_roles.is_empty() && !allowed_roles.iter().any(|role| *role == row.summary.role) {
+        return Err(AppError::InvalidCredentials);
+    }
+
+    Ok(row.summary)
+}
+
+fn fetch_local_login_record(conn: &Connection, username: &str) -> Result<Option<LocalLoginRecord>, AppError> {
     apply_migration(conn)?;
     let normalized_username = normalize_upper(username);
 
-    let row = conn
+    conn
         .query_row(
-            "SELECT id, username, full_name, role, department, is_active, created_at, password_hash FROM users WHERE username = ?1 AND is_active = 1",
+            "SELECT id, username, full_name, role, department, is_active, created_at, password_hash, internal_password_hash, internal_password_required FROM users WHERE username = ?1 AND is_active = 1",
             params![normalized_username],
             |r| {
-                Ok((
-                    UserSummary {
+                Ok(LocalLoginRecord {
+                    summary: UserSummary {
                         id: r.get(0)?,
                         username: r.get(1)?,
                         full_name: r.get(2)?,
@@ -1451,23 +1496,187 @@ fn authenticate_login(
                         is_active: r.get::<_, i64>(5)? == 1,
                         created_at: r.get(6)?,
                     },
-                    r.get::<_, String>(7)?,
-                ))
+                    password_hash: r.get(7)?,
+                    internal_password_hash: r.get(8)?,
+                    internal_password_required: r.get(9)?,
+                })
             },
         )
-        .optional()?
+        .optional()
+        .map_err(AppError::from)
+}
+
+fn fetch_online_bootstrap_user(
+    server_base_url: &str,
+    auth_token: Option<&str>,
+    username: &str,
+) -> Result<Option<OnlineBootstrapUser>, AppError> {
+    let base = server_base_url.trim().trim_end_matches('/');
+    if base.is_empty() {
+        return Err(AppError::Validation(
+            "first-time login on this device requires internet connection".to_string(),
+        ));
+    }
+
+    let endpoint = format!("{}/auth/user-bootstrap", base);
+    let client = Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|e| AppError::Http(format!("client build failed: {e}")))?;
+
+    let mut request = client.post(endpoint).json(&json!({ "username": normalize_upper(username) }));
+    if let Some(token) = auth_token {
+        if !token.trim().is_empty() {
+            request = request.bearer_auth(token.trim());
+        }
+    }
+
+    let response = request
+        .send()
+        .map_err(|_| AppError::Validation("first-time login on this device requires internet connection".to_string()))?;
+
+    if response.status().as_u16() == 404 {
+        return Ok(None);
+    }
+
+    if !response.status().is_success() {
+        return Err(AppError::Validation(
+            "unable to verify first-time login online. connect internet and retry".to_string(),
+        ));
+    }
+
+    let payload: OnlineBootstrapResponse = response
+        .json()
+        .map_err(|e| AppError::Json(format!("invalid bootstrap response: {e}")))?;
+
+    if !payload.ok {
+        return Err(AppError::Validation(
+            "unable to verify first-time login online".to_string(),
+        ));
+    }
+
+    Ok(Some(payload.user))
+}
+
+fn upsert_local_user_from_online(conn: &Connection, user: &OnlineBootstrapUser) -> Result<(), AppError> {
+    let required = if user.internal_password_required { 1 } else { 0 };
+    let is_active = if user.is_active { 1 } else { 0 };
+
+    conn.execute(
+        "INSERT INTO users (id, username, password_hash, role, department, is_active, college_uid, college_name, college_identification_number, full_name, internal_password_hash, internal_password_required, created_at, updated_at, version, sync_state)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, datetime('now'), 1, 'server_new')
+         ON CONFLICT(id) DO UPDATE SET
+           username = excluded.username,
+           password_hash = excluded.password_hash,
+           role = excluded.role,
+           department = excluded.department,
+           is_active = excluded.is_active,
+           college_uid = excluded.college_uid,
+           college_name = excluded.college_name,
+           college_identification_number = excluded.college_identification_number,
+           full_name = excluded.full_name,
+           internal_password_hash = excluded.internal_password_hash,
+           internal_password_required = excluded.internal_password_required,
+           updated_at = datetime('now'),
+           version = users.version + 1,
+           sync_state = 'server_new'",
+        params![
+            user.id,
+            normalize_upper(&user.username),
+            user.password_hash,
+            user.role,
+            user.department,
+            is_active,
+            user.college_uid,
+            user.college_name,
+            user.college_identification_number,
+            user.full_name,
+            user.internal_password_hash,
+            required,
+            user.created_at,
+        ],
+    )?;
+
+    Ok(())
+}
+
+#[tauri::command]
+fn login_with_bootstrap(
+    app: tauri::AppHandle,
+    username: String,
+    password: String,
+    login_mode: String,
+    server_base_url: Option<String>,
+    auth_token: Option<String>,
+) -> Result<UserSummary, AppError> {
+    let conn = open_connection(&app)?;
+    apply_migration(&conn)?;
+
+    let allowed_roles: &[&str] = match login_mode.as_str() {
+        "student" => &["student"],
+        "admin" => &["super_admin", "department_admin"],
+        "lecturer" => &["lecturer"],
+        "platform_admin" => &["platform_admin"],
+        _ => return Err(AppError::Validation("invalid login mode".to_string())),
+    };
+
+    if let Some(local) = fetch_local_login_record(&conn, &username)? {
+        if !verify_password(&local.password_hash, &password)? {
+            return Err(AppError::InvalidCredentials);
+        }
+
+        if !allowed_roles.is_empty() && !allowed_roles.iter().any(|role| *role == local.summary.role) {
+            return Err(AppError::InvalidCredentials);
+        }
+
+        let has_local_internal_hash = local
+            .internal_password_hash
+            .as_deref()
+            .map(str::trim)
+            .map(|v| !v.is_empty())
+            .unwrap_or(false);
+        let first_time_local = local.internal_password_required == 1 && !has_local_internal_hash;
+
+        if !first_time_local {
+            return Ok(local.summary);
+        }
+
+        let online_user = fetch_online_bootstrap_user(
+            server_base_url.as_deref().unwrap_or_default(),
+            auth_token.as_deref(),
+            &username,
+        )?
         .ok_or(AppError::InvalidCredentials)?;
 
-    let (summary, hash) = row;
-    if !verify_password(&hash, &password)? {
+        if !verify_password(&online_user.password_hash, &password)? {
+            return Err(AppError::InvalidCredentials);
+        }
+
+        if !allowed_roles.is_empty() && !allowed_roles.iter().any(|role| *role == online_user.role) {
+            return Err(AppError::InvalidCredentials);
+        }
+
+        upsert_local_user_from_online(&conn, &online_user)?;
+        return authenticate_login(&conn, &username, &password, allowed_roles);
+    }
+
+    let online_user = fetch_online_bootstrap_user(
+        server_base_url.as_deref().unwrap_or_default(),
+        auth_token.as_deref(),
+        &username,
+    )?
+    .ok_or(AppError::InvalidCredentials)?;
+
+    if !verify_password(&online_user.password_hash, &password)? {
         return Err(AppError::InvalidCredentials);
     }
 
-    if !allowed_roles.is_empty() && !allowed_roles.iter().any(|role| *role == summary.role) {
+    if !allowed_roles.is_empty() && !allowed_roles.iter().any(|role| *role == online_user.role) {
         return Err(AppError::InvalidCredentials);
     }
 
-    Ok(summary)
+    upsert_local_user_from_online(&conn, &online_user)?;
+    authenticate_login(&conn, &username, &password, allowed_roles)
 }
 
 #[tauri::command]
@@ -3681,6 +3890,7 @@ fn main() {
             seed_full_sync_snapshot,
             seed_platform_admin,
             login,
+            login_with_bootstrap,
             login_student,
             login_admin,
             login_lecturer,

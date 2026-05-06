@@ -1,9 +1,9 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { getStorageHealth, processBridgePayload } from "./store.js";
+import { getStorageHealth, getUserBootstrapByUsername, processBridgePayload } from "./store.js";
 
-export function createApp(store = { getStorageHealth, processBridgePayload }) {
+export function createApp(store = { getStorageHealth, processBridgePayload, getUserBootstrapByUsername }) {
   const app = express();
   const corsOrigins = (process.env.BACKEND_SERVER_CORS_ORIGINS ?? "")
     .split(",")
@@ -76,6 +76,40 @@ export function createApp(store = { getStorageHealth, processBridgePayload }) {
         // eslint-disable-next-line no-console
         console.error(`[backend-server] /sync/bridge failed: ${error.message ?? error}`);
         return res.status(500).json({ error: error.message ?? "sync bridge failed" });
+      });
+  });
+
+  app.post("/auth/user-bootstrap", (req, res) => {
+    const body = req.body;
+    if (!body || typeof body !== "object") {
+      return res.status(400).json({ error: "invalid request body" });
+    }
+
+    const username = typeof body.username === "string" ? body.username.trim() : "";
+    if (!username) {
+      return res.status(400).json({ error: "username is required" });
+    }
+
+    const configuredToken = (process.env.BACKEND_SERVER_BEARER_TOKEN ?? "").trim();
+    if (configuredToken) {
+      const header = req.headers.authorization ?? "";
+      const provided = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+      if (provided !== configuredToken) {
+        return res.status(401).json({ error: "unauthorized" });
+      }
+    }
+
+    return Promise.resolve(store.getUserBootstrapByUsername(username))
+      .then((user) => {
+        if (!user) {
+          return res.status(404).json({ error: "user not found" });
+        }
+        return res.json({ ok: true, user });
+      })
+      .catch((error) => {
+        // eslint-disable-next-line no-console
+        console.error(`[backend-server] /auth/user-bootstrap failed: ${error.message ?? error}`);
+        return res.status(500).json({ error: error.message ?? "user bootstrap lookup failed" });
       });
   });
 

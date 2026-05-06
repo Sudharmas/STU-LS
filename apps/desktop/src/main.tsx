@@ -746,14 +746,15 @@ function App() {
       return;
     }
     try {
-      const commandByMode: Record<LoginMode, string> = {
-        student: "login_student",
-        admin: "login_admin",
-        lecturer: "login_lecturer",
-        platform_admin: "login_platform_admin"
-      };
+      const resolvedServerUrl = await resolveAvailableSyncServer();
 
-      const user = await invoke<UserSummary>(commandByMode[loginMode], { username, password });
+      const user = await invoke<UserSummary>("login_with_bootstrap", {
+        username,
+        password,
+        loginMode,
+        serverBaseUrl: resolvedServerUrl,
+        authToken: DEFAULT_SYNC_TOKEN
+      });
       const needsInternalPasswordSetup = await invoke<boolean>("is_internal_password_setup_required", {
         username: user.username
       });
@@ -776,6 +777,7 @@ function App() {
           internalPassword: firstPassword,
           confirmPassword
         });
+        await performAutoSync({ username: user.username, role: user.role });
         setInfo("Internal password created successfully.");
       }
 

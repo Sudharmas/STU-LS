@@ -6,7 +6,8 @@ describe("backend server", () => {
   it("returns health from store", async () => {
     const app = createApp({
       getStorageHealth: vi.fn().mockResolvedValue({ ok: true, mode: "postgres" }),
-      processBridgePayload: vi.fn()
+      processBridgePayload: vi.fn(),
+      getUserBootstrapByUsername: vi.fn()
     });
 
     const response = await request(app).get("/health");
@@ -18,7 +19,8 @@ describe("backend server", () => {
   it("validates sync payload", async () => {
     const app = createApp({
       getStorageHealth: vi.fn().mockResolvedValue({ ok: true, mode: "postgres" }),
-      processBridgePayload: vi.fn()
+      processBridgePayload: vi.fn(),
+      getUserBootstrapByUsername: vi.fn()
     });
 
     const response = await request(app).post("/sync/bridge").send({});
@@ -37,7 +39,8 @@ describe("backend server", () => {
 
     const app = createApp({
       getStorageHealth: vi.fn().mockResolvedValue({ ok: true, mode: "postgres" }),
-      processBridgePayload
+      processBridgePayload,
+      getUserBootstrapByUsername: vi.fn()
     });
 
     const response = await request(app)
@@ -47,5 +50,21 @@ describe("backend server", () => {
     expect(response.status).toBe(200);
     expect(response.body.accepted_outbox_ids).toEqual([1]);
     expect(processBridgePayload).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns bootstrap user when found", async () => {
+    const getUserBootstrapByUsername = vi.fn().mockResolvedValue({ username: "PLATFORMADMIN", role: "platform_admin" });
+    const app = createApp({
+      getStorageHealth: vi.fn().mockResolvedValue({ ok: true, mode: "postgres" }),
+      processBridgePayload: vi.fn(),
+      getUserBootstrapByUsername
+    });
+
+    const response = await request(app).post("/auth/user-bootstrap").send({ username: "platformadmin" });
+
+    expect(response.status).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(response.body.user.username).toBe("PLATFORMADMIN");
+    expect(getUserBootstrapByUsername).toHaveBeenCalledWith("platformadmin");
   });
 });
