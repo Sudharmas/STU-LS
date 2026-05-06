@@ -707,7 +707,8 @@ function App() {
     };
 
     void bootstrap();
-  }, [performAutoSync, refreshData, resolveAvailableSyncServer, session]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleManualRefresh = async () => {
     if (!session) return;

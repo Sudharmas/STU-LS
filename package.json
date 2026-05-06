@@ -27,7 +27,8 @@
     "test:rust-sync": "cd apps/desktop/src-tauri && cargo test tests::",
     "release:windows": "npm --workspace @stu-ls/desktop run tauri:build:windows",
     "release:mac": "npm --workspace @stu-ls/desktop run tauri:build:mac",
-    "release:linux": "npm --workspace @stu-ls/desktop run tauri:build:linux",
-    
+    "release:mac:arm": "npm --workspace @stu-ls/desktop run tauri:build:mac:arm",
+    "release:mac:intel": "npm --workspace @stu-ls/desktop run tauri:build:mac:intel",
+    "release:linux": "npm --workspace @stu-ls/desktop run tauri:build:linux"
   }
 }

@@ -15,8 +15,20 @@ case "$TARGET" in
     npm run release:windows
     ;;
   mac)
-    echo "Building macOS installer..."
+    echo "Building macOS universal installer..."
+    rustup target add x86_64-apple-darwin
+    rustup target add aarch64-apple-darwin
     npm run release:mac
+    ;;
+  mac-arm)
+    echo "Building macOS Apple Silicon (ARM) installer..."
+    rustup target add aarch64-apple-darwin
+    npm run release:mac:arm
+    ;;
+  mac-intel)
+    echo "Building macOS Intel installer..."
+    rustup target add x86_64-apple-darwin
+    npm run release:mac:intel
     ;;
   linux)
     echo "Building Linux packages..."
