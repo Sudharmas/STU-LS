@@ -439,7 +439,11 @@ fn verify_password(hash: &str, raw_password: &str) -> Result<bool, AppError> {
 fn role_can_create(actor_role: &str, target_role: &str) -> bool {
     matches!(
         (actor_role, target_role),
-        ("platform_admin", "super_admin")
+        ("platform_admin", "platform_admin")
+            | ("platform_admin", "super_admin")
+            | ("platform_admin", "department_admin")
+            | ("platform_admin", "lecturer")
+            | ("platform_admin", "student")
             | ("super_admin", "department_admin")
             | ("department_admin", "lecturer")
             | ("department_admin", "student")
@@ -1298,12 +1302,12 @@ fn process_outbox_and_sync(
     let payload_preview = serde_json::to_string_pretty(&payload)
         .map_err(|e| AppError::Json(format!("serialize payload failed: {e}")))?;
 
-    let is_student_pull = actor_role
+    let should_pull_visible_users = actor_role
         .as_deref()
-        .map(|r| r.eq_ignore_ascii_case("student"))
+        .map(|r| matches!(r, "platform_admin" | "super_admin" | "department_admin" | "lecturer" | "student"))
         .unwrap_or(false);
 
-    if pending.is_empty() && !is_student_pull {
+    if pending.is_empty() && !should_pull_visible_users {
         return Ok(SyncProcessResult {
             mode: "idle".to_string(),
             queued: 0,

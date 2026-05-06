@@ -67,6 +67,88 @@ export async function getUserBootstrapByUsername(username) {
   return result.rows[0];
 }
 
+async function collectVisibleUserChanges(client, actorUsername, actorRole) {
+  const actorResult = await client.query(
+    `
+    SELECT role, college_uid, department
+    FROM public.users
+    WHERE username = $1 AND is_active = true
+    LIMIT 1
+    `,
+    [String(actorUsername ?? "").trim().toUpperCase()]
+  );
+
+  const actor = actorResult.rows[0];
+  if (!actor) {
+    return [];
+  }
+
+  let userResult;
+  if (actorRole === "platform_admin") {
+    userResult = await client.query(
+      `
+      SELECT id, username, password_hash, role, department, is_active,
+             college_uid, college_name, college_identification_number,
+             full_name, internal_password_hash, internal_password_required,
+             created_at, updated_at, version, sync_state
+      FROM public.users
+      WHERE is_active = true
+      ORDER BY id ASC
+      `
+    );
+  } else if (actorRole === "super_admin") {
+    userResult = await client.query(
+      `
+      SELECT id, username, password_hash, role, department, is_active,
+             college_uid, college_name, college_identification_number,
+             full_name, internal_password_hash, internal_password_required,
+             created_at, updated_at, version, sync_state
+      FROM public.users
+      WHERE is_active = true
+        AND role <> 'platform_admin'
+        AND college_uid = $1
+      ORDER BY id ASC
+      `,
+      [actor.college_uid]
+    );
+  } else if (actorRole === "department_admin") {
+    userResult = await client.query(
+      `
+      SELECT id, username, password_hash, role, department, is_active,
+             college_uid, college_name, college_identification_number,
+             full_name, internal_password_hash, internal_password_required,
+             created_at, updated_at, version, sync_state
+      FROM public.users
+      WHERE is_active = true
+        AND role IN ('lecturer', 'student')
+        AND college_uid = $1
+        AND LOWER(COALESCE(department, '')) = LOWER(COALESCE($2, ''))
+      ORDER BY id ASC
+      `,
+      [actor.college_uid, actor.department]
+    );
+  } else if (actorRole === "lecturer" || actorRole === "student") {
+    userResult = await client.query(
+      `
+      SELECT id, username, password_hash, role, department, is_active,
+             college_uid, college_name, college_identification_number,
+             full_name, internal_password_hash, internal_password_required,
+             created_at, updated_at, version, sync_state
+      FROM public.users
+      WHERE is_active = true
+        AND role = 'student'
+        AND college_uid = $1
+      ORDER BY id ASC
+      `,
+      [actor.college_uid]
+    );
+  } else {
+    return [];
+  }
+
+  return userResult.rows.map((row) => ({ table_name: "users", operation: "update", record: row }));
+}
+
 export async function processBridgePayload(payload) {
   if (!process.env.SUPABASE_DB_URL) {
     throw new Error("SUPABASE_DB_URL is required");
@@ -184,11 +266,16 @@ export async function processBridgePayload(payload) {
     let updateAvailable = false;
     let notifications = [];
 
-    if (payload.actor_role === "student" && typeof payload.actor_username === "string") {
-      const studentContext = await prepareStudentPull(client, payload.actor_username);
-      updateAvailable = studentContext.updateAvailable;
-      pullChanges = studentContext.pullChanges;
-      notifications = studentContext.notifications;
+    if (typeof payload.actor_username === "string" && typeof payload.actor_role === "string") {
+      const visibleUserChanges = await collectVisibleUserChanges(client, payload.actor_username, payload.actor_role);
+      pullChanges.push(...visibleUserChanges);
+
+      if (payload.actor_role === "student") {
+        const studentContext = await prepareStudentPull(client, payload.actor_username);
+        updateAvailable = studentContext.updateAvailable;
+        pullChanges.push(...studentContext.pullChanges);
+        notifications = studentContext.notifications;
+      }
     }
 
     await client.query("COMMIT");

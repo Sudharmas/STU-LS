@@ -1533,7 +1533,7 @@ function App() {
   const isStudent = session?.role === "student";
 
   const createRoleOptions: UserRole[] = session?.role === "platform_admin"
-    ? ["super_admin"]
+    ? ["platform_admin", "super_admin", "department_admin", "lecturer", "student"]
     : session?.role === "super_admin"
       ? ["department_admin"]
       : session?.role === "department_admin"
