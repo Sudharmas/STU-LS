@@ -1103,6 +1103,11 @@ function App() {
     setError("");
     setInfo("");
     try {
+      if (!updateTargetUsername.trim()) {
+        setError("Target username is required.");
+        return;
+      }
+
       const internalPassword = await requestPlatformInternalPassword("Delete user");
       if (internalPassword === null) {
         return;
@@ -1559,6 +1564,22 @@ function App() {
   const isLecturer = session?.role === "lecturer";
   const isStudent = session?.role === "student";
 
+  const canDeleteUserRow = (target: UserSummary): boolean => {
+    if (!session) {
+      return false;
+    }
+    if (!(session.role === "platform_admin" || session.role === "super_admin" || session.role === "department_admin")) {
+      return false;
+    }
+    if (target.username === session.username) {
+      return false;
+    }
+    if (target.role === "platform_admin") {
+      return false;
+    }
+    return true;
+  };
+
   const createRoleOptions: UserRole[] = session?.role === "platform_admin"
     ? ["platform_admin", "super_admin", "department_admin", "lecturer", "student"]
     : session?.role === "super_admin"
@@ -2000,7 +2021,7 @@ function App() {
                         <td>{u.department ?? "-"}</td>
                         <td>{u.is_active ? "active" : "inactive"}</td>
                           <td>
-                            {u.role === "student" ? (
+                            {canDeleteUserRow(u) ? (
                               <button className="error-btn" onClick={() => void handleDeleteUserByUsername(u.username)}>
                                 Delete
                               </button>

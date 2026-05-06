@@ -1,5 +1,6 @@
 use super::{apply_migration, ensure_student_semester_row, hash_password, normalize_upper, AppError, UserSummary};
 use chrono::Utc;
+use rand::Rng;
 use reqwest::blocking::Client;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::Deserialize;
@@ -18,8 +19,25 @@ struct SyncRejectedItem {
 }
 
 fn next_user_id(conn: &Connection) -> Result<i64, AppError> {
-    let next_id: i64 = conn.query_row("SELECT COALESCE(MAX(id), 0) + 1 FROM users", [], |r| r.get(0))?;
-    Ok(next_id)
+    // Use a high-entropy timestamp-based ID to avoid cross-device collisions
+    // when multiple offline clients create users independently.
+    let mut rng = rand::thread_rng();
+    for _ in 0..32 {
+        let candidate = Utc::now()
+            .timestamp_millis()
+            .saturating_mul(1_000)
+            .saturating_add(i64::from(rng.gen_range(0..1_000_u16)));
+        let exists: Option<i64> = conn
+            .query_row("SELECT id FROM users WHERE id = ?1", params![candidate], |r| r.get(0))
+            .optional()?;
+        if exists.is_none() {
+            return Ok(candidate);
+        }
+    }
+
+    Err(AppError::Validation(
+        "unable to generate unique user id".to_string(),
+    ))
 }
 
 fn insert_local_user(
