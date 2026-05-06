@@ -287,42 +287,49 @@ export async function processBridgePayload(payload) {
         continue;
       }
 
-      await client.query(
-        `
-        INSERT INTO public.sync_events (client_id, outbox_id, table_name, record_id, operation, payload, retries, received_at)
-        VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, now())
-        ON CONFLICT (client_id, outbox_id)
-        DO UPDATE SET payload = EXCLUDED.payload,
-                      operation = EXCLUDED.operation,
-                      retries = EXCLUDED.retries,
-                      received_at = EXCLUDED.received_at
-        `,
-        [
-          payload.client_id,
-          item.outbox_id,
-          item.table_name,
-          Number(item.record_id ?? payloadObj?.id ?? payloadObj?.student_user_id ?? 0),
-          item.operation,
-          JSON.stringify(payloadObj ?? {}),
-          Number(item.retries ?? 0)
-        ]
-      );
+      await client.query("SAVEPOINT item_processing");
+      try {
+        await client.query(
+          `
+          INSERT INTO public.sync_events (client_id, outbox_id, table_name, record_id, operation, payload, retries, received_at)
+          VALUES ($1, $2, $3, $4, $5, $6::jsonb, $7, now())
+          ON CONFLICT (client_id, outbox_id)
+          DO UPDATE SET payload = EXCLUDED.payload,
+                        operation = EXCLUDED.operation,
+                        retries = EXCLUDED.retries,
+                        received_at = EXCLUDED.received_at
+          `,
+          [
+            payload.client_id,
+            item.outbox_id,
+            item.table_name,
+            Number(item.record_id ?? payloadObj?.id ?? payloadObj?.student_user_id ?? 0),
+            item.operation,
+            JSON.stringify(payloadObj ?? {}),
+            Number(item.retries ?? 0)
+          ]
+        );
 
-      await applyDomainChange(client, item.table_name, item.operation, payloadObj ?? {});
+        await applyDomainChange(client, item.table_name, item.operation, payloadObj ?? {});
 
-      const impacted = await detectImpactedStudents(client, item.table_name, item.operation, payloadObj ?? {});
-      for (const studentUserId of impacted) {
-        impactedStudentIds.add(studentUserId);
-      }
-
-      if (item.table_name === "marks") {
-        const studentUserId = Number(payloadObj?.student_user_id ?? 0);
-        if (studentUserId > 0) {
-          await createMarksNotification(client, studentUserId, payloadObj ?? {});
+        const impacted = await detectImpactedStudents(client, item.table_name, item.operation, payloadObj ?? {});
+        for (const studentUserId of impacted) {
+          impactedStudentIds.add(studentUserId);
         }
-      }
 
-      accepted.push(item.outbox_id);
+        if (item.table_name === "marks") {
+          const studentUserId = Number(payloadObj?.student_user_id ?? 0);
+          if (studentUserId > 0) {
+            await createMarksNotification(client, studentUserId, payloadObj ?? {});
+          }
+        }
+
+        accepted.push(item.outbox_id);
+        await client.query("RELEASE SAVEPOINT item_processing");
+      } catch (err) {
+        await client.query("ROLLBACK TO SAVEPOINT item_processing");
+        rejected.push({ outbox_id: item.outbox_id, reason: err.message ?? "unknown error during apply" });
+      }
     }
 
     if (impactedStudentIds.size > 0) {
@@ -431,17 +438,19 @@ async function applyDomainChange(client, tableName, operation, record) {
   }
 
   if (tableName === "users") {
-    const conflict = await client.query(
+    const conflicts = await client.query(
       `
       SELECT id, username
       FROM public.users
       WHERE id = $1 OR username = $2
-      LIMIT 1
       `,
       [Number(record.id), String(record.username ?? "")]
     );
-    if (conflict.rows[0]) {
-      throw new Error("user already exists");
+    const isConflict = conflicts.rows.some(
+      (row) => row.id !== Number(record.id) || row.username !== String(record.username ?? "")
+    );
+    if (isConflict) {
+      throw new Error("user already exists or id collision");
     }
 
     await client.query(
